@@ -49,21 +49,47 @@ export function ArbitratorSelect({ value, onChange }: Props) {
       try {
         const aptos = new Aptos(new AptosConfig({ network: APTOS_NETWORK }));
 
-        // Use Aptos REST API directly to fetch ArbitratorMinted events
-        const res = await fetch(
-          `https://fullnode.testnet.aptoslabs.com/v1/accounts/${ARBITRATOR_ADDRESS}/events/${ARBITRATOR_ADDRESS}::arbitrator_nft::ArbitratorMinted?limit=50`
-        );
+        // Module events (#[event]) must be queried via Indexer GraphQL
+        const graphqlRes = await fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: `
+              query GetArbitratorMintedEvents {
+                events(
+                  where: {
+                    indexed_type: { _eq: "${ARBITRATOR_ADDRESS}::arbitrator_nft::ArbitratorMinted" }
+                  }
+                  limit: 50
+                  order_by: { transaction_version: asc }
+                ) {
+                  data
+                }
+              }
+            `,
+          }),
+        });
 
-        if (!res.ok) {
-          throw new Error(`Event fetch failed: ${res.status}`);
+        if (!graphqlRes.ok) throw new Error(`GraphQL request failed: ${graphqlRes.status}`);
+
+        const json = await graphqlRes.json();
+
+        if (json.errors) {
+          console.error("GraphQL errors:", json.errors);
+          throw new Error("GraphQL query error");
         }
 
-        const events: { data: { owner: string } }[] = await res.json();
+        const events: { data: { owner: string } }[] = json?.data?.events ?? [];
 
+        // Deduplicate owners (in case of re-mint events)
+        const seen = new Set<string>();
         const profiles: ArbitratorProfile[] = [];
+
         for (const event of events) {
           const owner = event.data?.owner;
-          if (!owner) continue;
+          if (!owner || seen.has(owner)) continue;
+          seen.add(owner);
+
           try {
             const [profile] = await aptos.view({
               payload: {
@@ -74,7 +100,7 @@ export function ArbitratorSelect({ value, onChange }: Props) {
             });
             profiles.push(profile as ArbitratorProfile);
           } catch {
-            // skip invalid profile
+            // profile no longer valid, skip
           }
         }
 
@@ -152,34 +178,40 @@ export function ArbitratorSelect({ value, onChange }: Props) {
                 No registered arbitrators found
               </div>
             )}
-            {!loading && arbitrators.map((a) => {
-              const isSelected = a.owner === value;
-              return (
-                <div
-                  key={a.owner}
-                  onClick={() => { onChange(a.owner); setOpen(false); }}
-                  className={`p-3 cursor-pointer transition-colors hover:bg-[#1A1A2E] border-b border-[#1A1A2E] last:border-0 ${
-                    isSelected ? "bg-[#1A1A2E]" : ""
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <TierBadge tier={a.tier} />
-                      <span className="font-mono text-xs text-[#CCCCDD] truncate">
-                        {shortAddr(a.owner)}
-                      </span>
+            {!loading &&
+              arbitrators.map((a) => {
+                const isSelected = a.owner === value;
+                return (
+                  <div
+                    key={a.owner}
+                    onClick={() => {
+                      onChange(a.owner);
+                      setOpen(false);
+                    }}
+                    className={`p-3 cursor-pointer transition-colors hover:bg-[#1A1A2E] border-b border-[#1A1A2E] last:border-0 ${
+                      isSelected ? "bg-[#1A1A2E]" : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <TierBadge tier={a.tier} />
+                        <span className="font-mono text-xs text-[#CCCCDD] truncate">
+                          {shortAddr(a.owner)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 text-xs text-[#8888AA]">
+                        <span>⭐ {a.reputation_score}%</span>
+                        <span>
+                          {a.disputes_resolved}/{a.disputes_total} disputes
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0 text-xs text-[#8888AA]">
-                      <span>⭐ {a.reputation_score}%</span>
-                      <span>{a.disputes_resolved}/{a.disputes_total} disputes</span>
+                    <div className="mt-1 font-mono text-[10px] text-[#44445A] truncate">
+                      {a.owner}
                     </div>
                   </div>
-                  <div className="mt-1 font-mono text-[10px] text-[#44445A] truncate">
-                    {a.owner}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
       )}
