@@ -66,32 +66,25 @@ export function ArbitratorSelect({ value, onChange }: Props) {
           }),
         };
 
-        // ✅ Dùng account_transactions (không bị deprecated)
-        // Query transactions gọi đến contract address + filter theo entry function
+        // ✅ account_transactions: chỉ filter where theo account_address
+        // KHÔNG lồng filter transaction (gây validation-failed)
+        // Lấy user_transaction trực tiếp, filter entry_function ở client
         const graphqlRes = await fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
           method: "POST",
           headers,
           body: JSON.stringify({
             query: `
-              query GetMintGoldTxs {
+              query GetContractTxs {
                 account_transactions(
                   where: {
                     account_address: { _eq: "${ARBITRATOR_ADDRESS}" }
-                    transaction: {
-                      user_transaction: {
-                        entry_function_id_str: {
-                          _eq: "${ARBITRATOR_ADDRESS}::arbitrator_nft::mint_gold"
-                        }
-                      }
-                    }
                   }
-                  limit: 50
+                  limit: 100
                   order_by: [{ transaction_version: asc }]
                 ) {
-                  transaction {
-                    user_transaction {
-                      sender
-                    }
+                  user_transaction {
+                    sender
+                    entry_function_id_str
                   }
                 }
               }
@@ -110,14 +103,21 @@ export function ArbitratorSelect({ value, onChange }: Props) {
           throw new Error(`GraphQL error: ${JSON.stringify(json.errors)}`);
         }
 
-        const rows: { transaction: { user_transaction: { sender: string } | null } }[] =
-          json?.data?.account_transactions ?? [];
+        const rows: {
+          user_transaction: { sender: string; entry_function_id_str: string } | null;
+        }[] = json?.data?.account_transactions ?? [];
+
+        const mintFn = `${ARBITRATOR_ADDRESS}::arbitrator_nft::mint_gold`;
 
         const seen = new Set<string>();
         const profiles: ArbitratorProfile[] = [];
 
         for (const row of rows) {
-          const owner = row.transaction?.user_transaction?.sender;
+          const ut = row.user_transaction;
+          // Chỉ lấy transactions gọi mint_gold
+          if (!ut || ut.entry_function_id_str !== mintFn) continue;
+
+          const owner = ut.sender;
           if (!owner || seen.has(owner)) continue;
           seen.add(owner);
 
