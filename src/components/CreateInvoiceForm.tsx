@@ -46,7 +46,7 @@ export function CreateInvoiceForm({ onSuccess }: Props) {
       const metadata: InvoiceMetadata = {
         version: "1.0",
         description: form.description,
-        vendor: account.address,
+        vendor: account.address.toString(),
         payer: form.payer,
         arbitrator: form.arbitrator,
         amount_usdc: form.amount,
