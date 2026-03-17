@@ -5,6 +5,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { CONTRACT_ADDRESS, REGISTRY_ADDRESS } from "@/utils/constants";
 import { parseUSDC, dateToUnix } from "@/utils/aptos";
 import { uploadInvoiceMetadata, type InvoiceMetadata } from "@/utils/shelby";
+import { ArbitratorSelect } from "@/components/ArbitratorSelect";
 
 type Props = { onSuccess?: () => void };
 
@@ -114,18 +115,11 @@ export function CreateInvoiceForm({ onSuccess }: Props) {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[#8888AA] uppercase tracking-wider">
-                Arbitrator Address *
-              </label>
-              <input
-                className="input-field font-mono text-xs"
-                placeholder="0x..."
-                value={form.arbitrator}
-                onChange={(e) => set("arbitrator", e.target.value)}
-              />
-              <p className="text-xs text-[#44445A]">Must be a registered arbitrator NFT holder</p>
-            </div>
+            {/* Arbitrator dropdown replaces plain input */}
+            <ArbitratorSelect
+              value={form.arbitrator}
+              onChange={(addr) => set("arbitrator", addr)}
+            />
           </div>
 
           <div className="grid md:grid-cols-2 gap-5">
@@ -163,7 +157,7 @@ export function CreateInvoiceForm({ onSuccess }: Props) {
             </label>
             <input
               className="input-field"
-              placeholder="e.g. Web development services — March 2026"
+              placeholder="e.g. Web development services – March 2026"
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
             />
@@ -180,7 +174,7 @@ export function CreateInvoiceForm({ onSuccess }: Props) {
               value={form.notes}
               onChange={(e) => set("notes", e.target.value)}
             />
-            <p className="text-xs text-[#44445A]">Stored on Shelby — visible to all parties</p>
+            <p className="text-xs text-[#44445A]">Stored on Shelby – visible to all parties</p>
           </div>
 
           {error && (
