@@ -27,7 +27,7 @@ function TierBadge({ tier }: { tier: number }) {
   if (!cfg) return null;
   return (
     <span
-      className="text-xs px-2 py-0.5 rounded-full font-medium"
+      className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
       style={{ color: cfg.color, background: `${cfg.color}18`, border: `1px solid ${cfg.color}40` }}
     >
       {cfg.emoji} {cfg.name}
@@ -49,24 +49,21 @@ export function ArbitratorSelect({ value, onChange }: Props) {
       try {
         const aptos = new Aptos(new AptosConfig({ network: APTOS_NETWORK }));
 
-        // Get total arbitrators count
-        const [total] = await aptos.view({
-          payload: {
-            function: `${ARBITRATOR_ADDRESS}::arbitrator_nft::total_arbitrators`,
-            typeArguments: [],
-            functionArguments: [ARBITRATOR_ADDRESS],
-          },
-        });
+        // Use Aptos REST API directly to fetch ArbitratorMinted events
+        const res = await fetch(
+          `https://fullnode.testnet.aptoslabs.com/v1/accounts/${ARBITRATOR_ADDRESS}/events/${ARBITRATOR_ADDRESS}::arbitrator_nft::ArbitratorMinted?limit=50`
+        );
 
-        // Fetch minted events to get arbitrator addresses
-        const events = await aptos.getModuleEventsByEventType({
-          eventType: `${ARBITRATOR_ADDRESS}::arbitrator_nft::ArbitratorMinted`,
-          options: { limit: Number(total) || 50 },
-        });
+        if (!res.ok) {
+          throw new Error(`Event fetch failed: ${res.status}`);
+        }
+
+        const events: { data: { owner: string } }[] = await res.json();
 
         const profiles: ArbitratorProfile[] = [];
         for (const event of events) {
-          const owner = (event.data as any).owner as string;
+          const owner = event.data?.owner;
+          if (!owner) continue;
           try {
             const [profile] = await aptos.view({
               payload: {
@@ -77,13 +74,14 @@ export function ArbitratorSelect({ value, onChange }: Props) {
             });
             profiles.push(profile as ArbitratorProfile);
           } catch {
-            // skip invalid
+            // skip invalid profile
           }
         }
 
         setArbitrators(profiles);
       } catch (e: any) {
         setError("Failed to load arbitrators");
+        console.error("ArbitratorSelect error:", e);
       } finally {
         setLoading(false);
       }
@@ -131,7 +129,9 @@ export function ArbitratorSelect({ value, onChange }: Props) {
         )}
         <svg
           className={`w-4 h-4 text-[#44445A] shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -141,18 +141,18 @@ export function ArbitratorSelect({ value, onChange }: Props) {
       {open && (
         <div className="relative z-50">
           <div className="absolute top-1 left-0 right-0 rounded-xl border border-[#1A1A2E] bg-[#0D0D1A] shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
-            {error && (
+            {loading && (
+              <div className="p-4 text-xs text-[#44445A] text-center">Loading...</div>
+            )}
+            {error && !loading && (
               <div className="p-3 text-xs text-[#FF4444]">{error}</div>
             )}
-            {!error && !loading && arbitrators.length === 0 && (
+            {!loading && !error && arbitrators.length === 0 && (
               <div className="p-4 text-xs text-[#44445A] text-center">
                 No registered arbitrators found
               </div>
             )}
-            {loading && (
-              <div className="p-4 text-xs text-[#44445A] text-center">Loading...</div>
-            )}
-            {arbitrators.map((a) => {
+            {!loading && arbitrators.map((a) => {
               const isSelected = a.owner === value;
               return (
                 <div
