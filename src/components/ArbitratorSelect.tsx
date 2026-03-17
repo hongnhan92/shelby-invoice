@@ -58,17 +58,11 @@ export function ArbitratorSelect({ value, onChange }: Props) {
           })
         );
 
-        // ✅ Dùng SDK thay vì fetch GraphQL thủ công
-        const events = await aptos.getEvents({
-          options: {
-            where: {
-              indexed_type: {
-                _eq: `${ARBITRATOR_ADDRESS}::arbitrator_nft::ArbitratorMinted`,
-              },
-            },
-            limit: 50,
-            orderBy: [{ transaction_version: "asc" }],
-          },
+        // ✅ Dùng REST API thay vì GraphQL Indexer — không bị 400
+        const events = await aptos.getAccountEventsByEventType({
+          accountAddress: ARBITRATOR_ADDRESS,
+          eventType: `${ARBITRATOR_ADDRESS}::arbitrator_nft::ArbitratorMinted`,
+          options: { limit: 50 },
         });
 
         const seen = new Set<string>();
