@@ -58,32 +58,66 @@ export function ArbitratorSelect({ value, onChange }: Props) {
           })
         );
 
-        const restHeaders: Record<string, string> = {
+        const headers: Record<string, string> = {
           "Content-Type": "application/json",
-          ...(apiKey && { "x-api-key": apiKey }),
+          ...(apiKey && {
+            "x-api-key": apiKey,
+            Authorization: `Bearer ${apiKey}`,
+          }),
         };
 
-        // ✅ Dùng REST API: lấy transactions của contract account
-        // Endpoint này chỉ trả txs liên quan đến ARBITRATOR_ADDRESS — không scan toàn chain
-        const mintFn = `${ARBITRATOR_ADDRESS}::arbitrator_nft::mint_gold`;
-        const url = `https://api.testnet.aptoslabs.com/v1/accounts/${ARBITRATOR_ADDRESS}/transactions?limit=100`;
+        // ✅ Dùng account_transactions (không bị deprecated)
+        // Query transactions gọi đến contract address + filter theo entry function
+        const graphqlRes = await fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            query: `
+              query GetMintGoldTxs {
+                account_transactions(
+                  where: {
+                    account_address: { _eq: "${ARBITRATOR_ADDRESS}" }
+                    transaction: {
+                      user_transaction: {
+                        entry_function_id_str: {
+                          _eq: "${ARBITRATOR_ADDRESS}::arbitrator_nft::mint_gold"
+                        }
+                      }
+                    }
+                  }
+                  limit: 50
+                  order_by: [{ transaction_version: asc }]
+                ) {
+                  transaction {
+                    user_transaction {
+                      sender
+                    }
+                  }
+                }
+              }
+            `,
+          }),
+        });
 
-        const res = await fetch(url, { headers: restHeaders });
-
-        if (!res.ok) {
-          throw new Error(`REST transactions failed: ${res.status}`);
+        if (!graphqlRes.ok) {
+          const errText = await graphqlRes.text();
+          throw new Error(`GraphQL ${graphqlRes.status}: ${errText}`);
         }
 
-        const txs: any[] = await res.json();
+        const json = await graphqlRes.json();
+
+        if (json.errors) {
+          throw new Error(`GraphQL error: ${JSON.stringify(json.errors)}`);
+        }
+
+        const rows: { transaction: { user_transaction: { sender: string } | null } }[] =
+          json?.data?.account_transactions ?? [];
 
         const seen = new Set<string>();
         const profiles: ArbitratorProfile[] = [];
 
-        for (const tx of txs) {
-          // Chỉ lấy txs gọi mint_gold
-          if (tx?.payload?.function !== mintFn) continue;
-
-          const owner = tx.sender;
+        for (const row of rows) {
+          const owner = row.transaction?.user_transaction?.sender;
           if (!owner || seen.has(owner)) continue;
           seen.add(owner);
 
