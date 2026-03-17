@@ -31,7 +31,7 @@ module shelby_invoice::arbitrator_nft {
     const TIER_PLATINUM: u8 = 3;
 
     // Mint fees in USDC (6 decimals)
-    const GOLD_MINT_FEE: u64 = 100_000_000;     // 100 USDC
+    const GOLD_MINT_FEE: u64 = 10_000_000;     // 10 USDC
     const DIAMOND_MINT_FEE: u64 = 500_000_000;  // 500 USDC
     const PLATINUM_MINT_FEE: u64 = 2_000_000_000; // 2000 USDC
 
