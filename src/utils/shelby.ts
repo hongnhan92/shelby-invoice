@@ -1,17 +1,4 @@
-import { ShelbyClient } from "@shelby-protocol/sdk/browser";
-import { SHELBY_API_KEY, SHELBY_BASE_URL } from "./constants";
-
-let _client: ShelbyClient | null = null;
-
-export function getShelbyClient(): ShelbyClient {
-  if (!_client) {
-    _client = new ShelbyClient({
-      network: "testnet" as any,
-      apiKey: SHELBY_API_KEY,
-    });
-  }
-  return _client;
-}
+import { SHELBY_BASE_URL } from "./constants";
 
 export type InvoiceMetadata = {
   version: "1.0";
@@ -35,27 +22,30 @@ export async function uploadInvoiceMetadata(
   signAndSubmitTransaction: (params: any) => Promise<any>,
   metadata: InvoiceMetadata,
 ): Promise<{ url: string; hash: string }> {
-  const client = getShelbyClient();
   const blobName = `invoice-${Date.now()}.json`;
   const metadataJson = JSON.stringify(metadata, null, 2);
-  const blobData = new TextEncoder().encode(metadataJson);
+  const blobData = Array.from(new TextEncoder().encode(metadataJson));
 
-  const storageAccountAddress = accountAddress;
-
-  await client.rpc.putBlob({
-    account: storageAccountAddress,
-    blobName,
-    blobData,
-  });
-
-  const url = buildShelbyUrl(storageAccountAddress, blobName);
-
-  // Simple hash for integrity check
-  const hash = await crypto.subtle.digest("SHA-256", blobData);
-  const hashHex = Array.from(new Uint8Array(hash))
+  // Tính hash trước khi upload
+  const blobUint8 = new Uint8Array(blobData);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", blobUint8);
+  const hashHex = Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
+  // Gọi API route server-side thay vì gọi Shelby trực tiếp
+  const res = await fetch("/api/upload-metadata", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountAddress, blobName, blobData }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to upload to Shelby");
+  }
+
+  const url = buildShelbyUrl(accountAddress, blobName);
   return { url, hash: `0x${hashHex}` };
 }
 
