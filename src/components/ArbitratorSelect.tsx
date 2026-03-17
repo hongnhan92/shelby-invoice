@@ -58,18 +58,56 @@ export function ArbitratorSelect({ value, onChange }: Props) {
           })
         );
 
-        // ✅ Dùng REST API thay vì GraphQL Indexer — không bị 400
-        const events = await aptos.getAccountEventsByEventType({
-          accountAddress: ARBITRATOR_ADDRESS,
-          eventType: `${ARBITRATOR_ADDRESS}::arbitrator_nft::ArbitratorMinted`,
-          options: { limit: 50 },
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          ...(apiKey && {
+            "x-api-key": apiKey,
+            Authorization: `Bearer ${apiKey}`,
+          }),
+        };
+
+        // ✅ Dùng user_transactions thay vì events (đã deprecated)
+        // Query tất cả transaction đã gọi mint_gold → lấy sender = arbitrator address
+        const graphqlRes = await fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            query: `
+              query GetArbitratorMinters {
+                user_transactions(
+                  where: {
+                    entry_function_id_str: {
+                      _eq: "${ARBITRATOR_ADDRESS}::arbitrator_nft::mint_gold"
+                    }
+                  }
+                  limit: 50
+                  order_by: [{ version: asc }]
+                ) {
+                  sender
+                }
+              }
+            `,
+          }),
         });
+
+        if (!graphqlRes.ok) {
+          const errText = await graphqlRes.text();
+          throw new Error(`GraphQL ${graphqlRes.status}: ${errText}`);
+        }
+
+        const json = await graphqlRes.json();
+
+        if (json.errors) {
+          throw new Error(`GraphQL error: ${JSON.stringify(json.errors)}`);
+        }
+
+        const txs: { sender: string }[] = json?.data?.user_transactions ?? [];
 
         const seen = new Set<string>();
         const profiles: ArbitratorProfile[] = [];
 
-        for (const event of events) {
-          const owner = (event.data as any)?.owner;
+        for (const tx of txs) {
+          const owner = tx.sender;
           if (!owner || seen.has(owner)) continue;
           seen.add(owner);
 
@@ -117,7 +155,6 @@ export function ArbitratorSelect({ value, onChange }: Props) {
         Arbitrator *
       </label>
 
-      {/* Trigger button */}
       <div
         className="input-field font-mono text-xs cursor-pointer flex items-center justify-between gap-2 select-none"
         onClick={() => setOpen((o) => !o)}
@@ -145,7 +182,6 @@ export function ArbitratorSelect({ value, onChange }: Props) {
         </svg>
       </div>
 
-      {/* Dropdown list */}
       {open && (
         <div className="relative z-50">
           <div className="absolute top-1 left-0 right-0 rounded-xl border border-[#1A1A2E] bg-[#0D0D1A] shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
@@ -198,7 +234,6 @@ export function ArbitratorSelect({ value, onChange }: Props) {
         </div>
       )}
 
-      {/* Manual input fallback */}
       <input
         className="input-field font-mono text-xs w-full"
         placeholder="Or paste address manually: 0x..."
