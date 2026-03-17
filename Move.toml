@@ -1,0 +1,17 @@
+[package]
+name = "shelby_invoice"
+version = "1.0.0"
+authors = []
+
+[addresses]
+shelby_invoice = "_"
+
+[dev-addresses]
+shelby_invoice = "0x0"
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]

@@ -1,0 +1,25 @@
+# Aptos
+.aptos/
+build/
+
+# Frontend
+node_modules/
+.next/
+.env.local
+.env
+.env*.local
+
+# Secrets
+mnemonics.txt
+*.key
+*.pem
+private_key.txt
+sponsor_account.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
