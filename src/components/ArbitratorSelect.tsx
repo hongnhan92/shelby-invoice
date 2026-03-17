@@ -58,50 +58,24 @@ export function ArbitratorSelect({ value, onChange }: Props) {
           })
         );
 
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (apiKey) {
-          headers["Authorization"] = `Bearer ${apiKey}`;
-          headers["x-api-key"] = apiKey;
-        }
-
-        const graphqlRes = await fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            query: `
-              query GetArbitratorMintedEvents {
-                events(
-                  where: {
-                    indexed_type: { _eq: "${ARBITRATOR_ADDRESS}::arbitrator_nft::ArbitratorMinted" }
-                  }
-                  limit: 50
-                  order_by: { transaction_version: asc }
-                ) {
-                  data
-                }
-              }
-            `,
-          }),
+        // ✅ Dùng SDK thay vì fetch GraphQL thủ công
+        const events = await aptos.getEvents({
+          options: {
+            where: {
+              indexed_type: {
+                _eq: `${ARBITRATOR_ADDRESS}::arbitrator_nft::ArbitratorMinted`,
+              },
+            },
+            limit: 50,
+            orderBy: [{ transaction_version: "asc" }],
+          },
         });
-
-        if (!graphqlRes.ok) throw new Error(`GraphQL request failed: ${graphqlRes.status}`);
-
-        const json = await graphqlRes.json();
-
-        if (json.errors) {
-          console.error("GraphQL errors:", json.errors);
-          throw new Error("GraphQL query error");
-        }
-
-        const events: { data: { owner: string } }[] = json?.data?.events ?? [];
 
         const seen = new Set<string>();
         const profiles: ArbitratorProfile[] = [];
 
         for (const event of events) {
-          const owner = event.data?.owner;
+          const owner = (event.data as any)?.owner;
           if (!owner || seen.has(owner)) continue;
           seen.add(owner);
 
