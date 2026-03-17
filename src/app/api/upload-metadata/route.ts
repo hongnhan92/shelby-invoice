@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ShelbyClient } from "@shelby-protocol/sdk";
+import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 
 export async function POST(req: NextRequest) {
   try {
@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
 
     const client = new ShelbyClient({
       network: "testnet" as any,
-      apiKey: process.env.SHELBY_API_KEY!, // server-side only, không lộ ra browser
+      apiKey: process.env.SHELBY_API_KEY!,
     });
 
     await client.rpc.putBlob({
