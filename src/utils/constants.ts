@@ -68,7 +68,7 @@ export const STATUS_CANCELLED = 2;
 export const STATUS_DISPUTED = 3;
 export const STATUS_RESOLVED = 4;
 
-export const STATUS_CONFIG = {
+export const STATUS_CONFIG: Record<number, { label: string; color: string; bg: string }> = {
   [STATUS_CREATED]: { label: "Active", color: "text-emerald-400", bg: "bg-emerald-400/10" },
   [STATUS_PAID]: { label: "Paid", color: "text-blue-400", bg: "bg-blue-400/10" },
   [STATUS_CANCELLED]: { label: "Cancelled", color: "text-red-400", bg: "bg-red-400/10" },

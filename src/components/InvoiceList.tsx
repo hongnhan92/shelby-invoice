@@ -155,7 +155,7 @@ export function InvoiceList({ mode }: Props) {
           </div>
 
           {invoice.shelby_url && (
-            <a
+            
               href={invoice.shelby_url}
               target="_blank"
               rel="noopener noreferrer"
@@ -168,18 +168,19 @@ export function InvoiceList({ mode }: Props) {
           {/* Actions */}
           {account && (
             <div className="flex flex-wrap gap-3 pt-4 border-t border-[#1E1E32]">
-              {invoice.status === 0 && invoice.payer === account.address && (
+              {invoice.status === 0 && invoice.payer === account.address.toString() && (
                 <button className="btn-primary text-sm" onClick={() => handlePay(invoice.id)}>
                   Pay Invoice
                 </button>
               )}
-              {invoice.status === 0 && invoice.vendor === account.address && (
+              {invoice.status === 0 && invoice.vendor === account.address.toString() && (
                 <button className="btn-danger text-sm" onClick={() => handleCancel(invoice.id)}>
                   Cancel
                 </button>
               )}
               {invoice.status === 0 && (
-                invoice.vendor === account.address || invoice.payer === account.address
+                invoice.vendor === account.address.toString() || 
+                invoice.payer === account.address.toString()
               ) && (
                 <button className="btn-secondary text-sm" onClick={() => handleDispute(invoice.id)}>
                   Raise Dispute
