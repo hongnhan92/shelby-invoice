@@ -47,12 +47,28 @@ export function ArbitratorSelect({ value, onChange }: Props) {
       setLoading(true);
       setError("");
       try {
-        const aptos = new Aptos(new AptosConfig({ network: APTOS_NETWORK }));
+        const apiKey = process.env.NEXT_PUBLIC_APTOS_API_KEY;
 
-        // Module events (#[event]) must be queried via Indexer GraphQL
+        const aptos = new Aptos(
+          new AptosConfig({
+            network: APTOS_NETWORK,
+            ...(apiKey && {
+              clientConfig: { HEADERS: { "x-api-key": apiKey } },
+            }),
+          })
+        );
+
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (apiKey) {
+          headers["Authorization"] = `Bearer ${apiKey}`;
+          headers["x-api-key"] = apiKey;
+        }
+
         const graphqlRes = await fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             query: `
               query GetArbitratorMintedEvents {
@@ -81,7 +97,6 @@ export function ArbitratorSelect({ value, onChange }: Props) {
 
         const events: { data: { owner: string } }[] = json?.data?.events ?? [];
 
-        // Deduplicate owners (in case of re-mint events)
         const seen = new Set<string>();
         const profiles: ArbitratorProfile[] = [];
 
@@ -116,7 +131,6 @@ export function ArbitratorSelect({ value, onChange }: Props) {
     fetchArbitrators();
   }, []);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
