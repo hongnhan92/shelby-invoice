@@ -111,7 +111,7 @@ invoice_marketplace.move
 └── cancel_listing()       — seller cancels listing
 
 arbitrator_nft.move
-├── mint_gold()            — mint Gold tier (100 USDC)
+├── mint_gold()            — mint Gold tier (30 USDC)
 ├── upgrade_to_diamond()   — upgrade to Diamond (500 USDC, 10 disputes, 80% rep)
 ├── upgrade_to_platinum()  — upgrade to Platinum (2000 USDC, 50 disputes, 95% rep)
 ├── record_resolution()    — update reputation after dispute
@@ -127,9 +127,9 @@ This project uses USDC as a Fungible Asset (FA) on Aptos:
 0x69091fbab5f7d635ee7ac5098cf0c1efbe31d68fec0f2cd565e8d168daf52832
 ```
 
-Get testnet USDC from the Shelby faucet:
+Get testnet USDC from the Circle faucet:
 ```
-https://docs.shelby.xyz/apis/faucet/shelbyusd?address=<YOUR_ADDRESS>
+https://faucet.circle.com/
 ```
 
 ---
