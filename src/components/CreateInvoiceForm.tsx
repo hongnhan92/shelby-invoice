@@ -56,7 +56,7 @@ export function CreateInvoiceForm({ onSuccess }: Props) {
       };
 
       const { url, hash } = await uploadInvoiceMetadata(
-        account.address,
+        account.address.toString(),
         signAndSubmitTransaction,
         metadata,
       );
