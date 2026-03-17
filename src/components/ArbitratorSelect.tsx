@@ -23,7 +23,7 @@ function shortAddr(addr: string) {
 }
 
 function TierBadge({ tier }: { tier: number }) {
-  const cfg = TIER_CONFIG[tier];
+  const cfg = TIER_CONFIG[tier as keyof typeof TIER_CONFIG];
   if (!cfg) return null;
   return (
     <span
