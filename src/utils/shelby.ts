@@ -2,7 +2,7 @@ import {
   ShelbyClient,
   ShelbyBlobClient,
   generateCommitments,
-  ClayErasureCodingProvider,
+  createDefaultErasureCodingProvider,
 } from "@shelby-protocol/sdk/browser";
 import { SHELBY_BASE_URL } from "./constants";
 
@@ -46,7 +46,7 @@ export async function uploadInvoiceMetadata(
   const blobData = new TextEncoder().encode(metadataJson);
 
   // Step 1: Generate commitments (merkle root)
-  const provider = await ClayErasureCodingProvider.create();
+  const provider = await createDefaultErasureCodingProvider();
   const commitments = await generateCommitments(provider, blobData);
 
   // Step 2: Build register blob payload
