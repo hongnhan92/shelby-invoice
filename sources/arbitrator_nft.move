@@ -30,11 +30,6 @@ module shelby_invoice::arbitrator_nft {
     const TIER_DIAMOND: u8 = 2;
     const TIER_PLATINUM: u8 = 3;
 
-    // Mint fees in USDC (6 decimals)
-    const GOLD_MINT_FEE: u64 = 10_000_000;     // 10 USDC
-    const DIAMOND_MINT_FEE: u64 = 500_000_000;  // 500 USDC
-    const PLATINUM_MINT_FEE: u64 = 2_000_000_000; // 2000 USDC
-
     // Upgrade requirements
     const DIAMOND_MIN_DISPUTES: u64 = 10;
     const DIAMOND_MIN_REPUTATION: u64 = 80; // 80%
@@ -62,6 +57,9 @@ module shelby_invoice::arbitrator_nft {
         fee_collector: address,
         total_arbitrators: u64,
         authorized_resolvers: Table<address, bool>, // invoice_registry addresses
+        gold_mint_fee: u64,
+        diamond_mint_fee: u64,
+        platinum_mint_fee: u64,
     }
 
     // ─── Events ──────────────────────────────────────────────────────────────
@@ -94,6 +92,13 @@ module shelby_invoice::arbitrator_nft {
         reputation_score: u64,
     }
 
+    #[event]
+    struct FeesUpdated has drop, store {
+        gold_mint_fee: u64,
+        diamond_mint_fee: u64,
+        platinum_mint_fee: u64,
+    }
+
     // ─── Init ────────────────────────────────────────────────────────────────
 
     public entry fun initialize(admin: &signer, fee_collector: address) {
@@ -106,6 +111,9 @@ module shelby_invoice::arbitrator_nft {
             fee_collector,
             total_arbitrators: 0,
             authorized_resolvers: table::new(),
+            gold_mint_fee: 30_000_000,        // 30 USDC (default)
+            diamond_mint_fee: 500_000_000,    // 500 USDC (default)
+            platinum_mint_fee: 2_000_000_000, // 2000 USDC (default)
         });
     }
 
@@ -118,6 +126,43 @@ module shelby_invoice::arbitrator_nft {
         let registry = borrow_global_mut<ArbitratorRegistry>(registry_addr);
         assert!(registry.admin == admin_addr, E_NOT_AUTHORIZED);
         table::upsert(&mut registry.authorized_resolvers, resolver, true);
+    }
+
+    // ─── Admin: Update Fees ──────────────────────────────────────────────────
+
+    /// Update mint/upgrade fees. Admin only. No redeploy needed.
+    public entry fun set_fees(
+        admin: &signer,
+        registry_addr: address,
+        gold_fee: u64,
+        diamond_fee: u64,
+        platinum_fee: u64,
+    ) acquires ArbitratorRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<ArbitratorRegistry>(registry_addr);
+        assert!(registry.admin == admin_addr, E_NOT_AUTHORIZED);
+
+        registry.gold_mint_fee = gold_fee;
+        registry.diamond_mint_fee = diamond_fee;
+        registry.platinum_mint_fee = platinum_fee;
+
+        event::emit(FeesUpdated {
+            gold_mint_fee: gold_fee,
+            diamond_mint_fee: diamond_fee,
+            platinum_mint_fee: platinum_fee,
+        });
+    }
+
+    /// Update fee collector address. Admin only.
+    public entry fun set_fee_collector(
+        admin: &signer,
+        registry_addr: address,
+        new_fee_collector: address,
+    ) acquires ArbitratorRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<ArbitratorRegistry>(registry_addr);
+        assert!(registry.admin == admin_addr, E_NOT_AUTHORIZED);
+        registry.fee_collector = new_fee_collector;
     }
 
     // ─── Core Functions ──────────────────────────────────────────────────────
@@ -134,8 +179,9 @@ module shelby_invoice::arbitrator_nft {
         assert!(!table::contains(&registry.profiles, caller_addr), E_ALREADY_ARBITRATOR);
 
         // Charge mint fee
+        let fee = registry.gold_mint_fee;
         let usdc_metadata = object::address_to_object<Metadata>(USDC_METADATA);
-        primary_fungible_store::transfer(caller, usdc_metadata, registry.fee_collector, GOLD_MINT_FEE);
+        primary_fungible_store::transfer(caller, usdc_metadata, registry.fee_collector, fee);
 
         let profile = ArbitratorProfile {
             owner: caller_addr,
@@ -154,7 +200,7 @@ module shelby_invoice::arbitrator_nft {
         event::emit(ArbitratorMinted {
             owner: caller_addr,
             tier: TIER_GOLD,
-            fee_paid: GOLD_MINT_FEE,
+            fee_paid: fee,
         });
     }
 
@@ -174,8 +220,9 @@ module shelby_invoice::arbitrator_nft {
         assert!(profile.reputation_score >= DIAMOND_MIN_REPUTATION, E_INSUFFICIENT_REPUTATION);
 
         // Charge upgrade fee
+        let fee = registry.diamond_mint_fee;
         let usdc_metadata = object::address_to_object<Metadata>(USDC_METADATA);
-        primary_fungible_store::transfer(caller, usdc_metadata, registry.fee_collector, DIAMOND_MINT_FEE);
+        primary_fungible_store::transfer(caller, usdc_metadata, registry.fee_collector, fee);
 
         let old_tier = profile.tier;
         profile.tier = TIER_DIAMOND;
@@ -203,8 +250,9 @@ module shelby_invoice::arbitrator_nft {
         assert!(profile.reputation_score >= PLATINUM_MIN_REPUTATION, E_INSUFFICIENT_REPUTATION);
 
         // Charge upgrade fee
+        let fee = registry.platinum_mint_fee;
         let usdc_metadata = object::address_to_object<Metadata>(USDC_METADATA);
-        primary_fungible_store::transfer(caller, usdc_metadata, registry.fee_collector, PLATINUM_MINT_FEE);
+        primary_fungible_store::transfer(caller, usdc_metadata, registry.fee_collector, fee);
 
         let old_tier = profile.tier;
         profile.tier = TIER_PLATINUM;
@@ -324,11 +372,17 @@ module shelby_invoice::arbitrator_nft {
     }
 
     #[view]
-    public fun gold_mint_fee(): u64 { GOLD_MINT_FEE }
+    public fun gold_mint_fee(registry_addr: address): u64 acquires ArbitratorRegistry {
+        borrow_global<ArbitratorRegistry>(registry_addr).gold_mint_fee
+    }
 
     #[view]
-    public fun diamond_mint_fee(): u64 { DIAMOND_MINT_FEE }
+    public fun diamond_mint_fee(registry_addr: address): u64 acquires ArbitratorRegistry {
+        borrow_global<ArbitratorRegistry>(registry_addr).diamond_mint_fee
+    }
 
     #[view]
-    public fun platinum_mint_fee(): u64 { PLATINUM_MINT_FEE }
+    public fun platinum_mint_fee(registry_addr: address): u64 acquires ArbitratorRegistry {
+        borrow_global<ArbitratorRegistry>(registry_addr).platinum_mint_fee
+    }
 }
