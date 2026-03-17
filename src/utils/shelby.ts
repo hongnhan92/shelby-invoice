@@ -1,4 +1,22 @@
+import {
+  ShelbyClient,
+  ShelbyBlobClient,
+  generateCommitments,
+  ClayErasureCodingProvider,
+} from "@shelby-protocol/sdk/browser";
 import { SHELBY_BASE_URL } from "./constants";
+
+let _client: ShelbyClient | null = null;
+
+export function getShelbyClient(): ShelbyClient {
+  if (!_client) {
+    _client = new ShelbyClient({
+      network: "testnet" as any,
+      apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY,
+    });
+  }
+  return _client;
+}
 
 export type InvoiceMetadata = {
   version: "1.0";
@@ -22,28 +40,41 @@ export async function uploadInvoiceMetadata(
   signAndSubmitTransaction: (params: any) => Promise<any>,
   metadata: InvoiceMetadata,
 ): Promise<{ url: string; hash: string }> {
+  const client = getShelbyClient();
   const blobName = `invoice-${Date.now()}.json`;
   const metadataJson = JSON.stringify(metadata, null, 2);
-  const blobData = Array.from(new TextEncoder().encode(metadataJson));
+  const blobData = new TextEncoder().encode(metadataJson);
 
-  // Tính hash trước khi upload
-  const blobUint8 = new Uint8Array(blobData);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", blobUint8);
+  // Step 1: Generate commitments (merkle root)
+  const provider = await ClayErasureCodingProvider.create();
+  const commitments = await generateCommitments(provider, blobData);
+
+  // Step 2: Build register blob payload
+  const payload = ShelbyBlobClient.createRegisterBlobPayload({
+    account: accountAddress as any,
+    blobName,
+    blobSize: blobData.length,
+    blobMerkleRoot: commitments.blob_merkle_root,
+    expirationMicros: (Date.now() + 30 * 24 * 60 * 60 * 1000) * 1000, // 30 days
+    numChunksets: commitments.chunkset_commitments.length,
+    encoding: 0,
+  });
+
+  // Step 3: Sign & submit on-chain via user's wallet
+  await signAndSubmitTransaction({ data: payload });
+
+  // Step 4: Upload blob data to Shelby RPC
+  await client.rpc.putBlob({
+    account: accountAddress,
+    blobName,
+    blobData,
+  });
+
+  // Step 5: Compute hash for on-chain integrity check
+  const hashBuffer = await crypto.subtle.digest("SHA-256", blobData);
   const hashHex = Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-
-  // Gọi API route server-side thay vì gọi Shelby trực tiếp
-  const res = await fetch("/api/upload-metadata", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ accountAddress, blobName, blobData }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to upload to Shelby");
-  }
 
   const url = buildShelbyUrl(accountAddress, blobName);
   return { url, hash: `0x${hashHex}` };
