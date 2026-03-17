@@ -63,7 +63,7 @@ export function Header() {
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#00FF94]/10 border border-[#00FF94]/20">
                 <div className="w-2 h-2 rounded-full bg-[#00FF94] animate-pulse" />
                 <span className="font-mono text-xs text-[#00FF94]">
-                  {formatAddress(account.address)}
+                  {formatAddress(account.address.toString())}
                 </span>
               </div>
               <button
