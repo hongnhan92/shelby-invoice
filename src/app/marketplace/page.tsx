@@ -24,6 +24,7 @@ type Invoice = {
   id: number;
   vendor: string;
   payer: string;
+  beneficiary: string;
   amount: number;
   due_date: number;
   description: string;
@@ -129,15 +130,24 @@ export default function MarketplacePage() {
       }
 
       const userAddr = account.address?.toString();
-      if (invoice.vendor !== userAddr) {
-        setError("You are not the vendor of this invoice.");
+
+      // Only current beneficiary can list (vendor originally, or buyer after purchase)
+      if (invoice.beneficiary !== userAddr) {
+        setError("Only the current beneficiary of this invoice can list it for sale.");
         setStatus("");
         setLoading(false);
         return;
       }
 
+      const statusMessages: Record<number, string> = {
+        1: "This invoice has already been paid and cannot be listed.",
+        2: "This invoice has been cancelled and cannot be listed.",
+        3: "This invoice is under dispute and cannot be listed.",
+        4: "This invoice has been resolved and cannot be listed.",
+      };
+
       if (invoice.status !== 0) {
-        setError("Invoice is not in Active status and cannot be listed.");
+        setError(statusMessages[invoice.status] || "This invoice cannot be listed.");
         setStatus("");
         setLoading(false);
         return;

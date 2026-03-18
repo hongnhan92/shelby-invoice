@@ -10,6 +10,15 @@ import type { Invoice } from "@/types";
 const config = new AptosConfig({ network: Network.TESTNET });
 const aptos = new Aptos(config);
 
+// Normalize address: lowercase, remove leading zeros after 0x
+// e.g. "0x00abc" → "0xabc", "0XABC" → "0xabc"
+function normalizeAddr(addr: string): string {
+  if (!addr) return "";
+  const lower = addr.toLowerCase();
+  const hex = lower.startsWith("0x") ? lower.slice(2) : lower;
+  return "0x" + hex.replace(/^0+/, "") || "0x0";
+}
+
 type Props = { mode: "vendor" | "payer" };
 
 export function InvoiceList({ mode }: Props) {
@@ -23,7 +32,7 @@ export function InvoiceList({ mode }: Props) {
   const [lookupError, setLookupError] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
 
-  const userAddr = account?.address?.toString();
+  const userAddr = normalizeAddr(account?.address?.toString() ?? "");
 
   useEffect(() => {
     if (!userAddr) return;
@@ -63,7 +72,11 @@ export function InvoiceList({ mode }: Props) {
         if (result.status !== "fulfilled") continue;
         const inv = result.value[0] as Invoice;
         if (!inv) continue;
-        const isMatch = mode === "vendor" ? inv.vendor === userAddr : inv.payer === userAddr;
+        const normVendor = normalizeAddr(inv.vendor);
+        const normPayer = normalizeAddr(inv.payer);
+        const isMatch = mode === "vendor"
+          ? normVendor === userAddr
+          : normPayer === userAddr;
         if (isMatch) matched.push(inv);
       }
       matched.sort((a, b) => Number(b.id) - Number(a.id));
@@ -203,7 +216,7 @@ export function InvoiceList({ mode }: Props) {
 
         {account && (
           <div className="flex flex-wrap gap-2 pt-3 border-t border-[#1E1E32]">
-            {inv.status === 0 && inv.payer === userAddr && (
+            {inv.status === 0 && normalizeAddr(inv.payer) === userAddr && (
               <button
                 className="bg-[#00FF94] text-black px-4 py-1.5 rounded-lg text-sm font-bold hover:brightness-110 transition-all"
                 onClick={() => handlePay(inv.id)}
@@ -211,7 +224,7 @@ export function InvoiceList({ mode }: Props) {
                 Pay Invoice
               </button>
             )}
-            {inv.status === 0 && inv.vendor === userAddr && (
+            {inv.status === 0 && normalizeAddr(inv.vendor) === userAddr && (
               <button
                 className="bg-[#FF4444] text-white px-4 py-1.5 rounded-lg text-sm font-bold hover:brightness-110 transition-all"
                 onClick={() => handleCancel(inv.id)}
@@ -219,7 +232,7 @@ export function InvoiceList({ mode }: Props) {
                 Cancel
               </button>
             )}
-            {inv.status === 0 && (inv.vendor === userAddr || inv.payer === userAddr) && (
+            {inv.status === 0 && (normalizeAddr(inv.vendor) === userAddr || normalizeAddr(inv.payer) === userAddr) && (
               <button
                 className="border border-[#2A2A40] text-white px-4 py-1.5 rounded-lg text-sm hover:bg-[#1E1E32] transition-all"
                 onClick={() => handleDispute(inv.id)}
